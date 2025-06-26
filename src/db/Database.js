@@ -39,35 +39,53 @@ export const initDB = () => {
         FOREIGN KEY (course_id) REFERENCES courses(id)
       );`,
       [],
-      () => console.log('Subject table created'),
+      () => console.log('Subject table created Successfully'),
       (txObj, error) => console.log('Error creating subject table:', error),
     );
   });
 };
 
-// ✅ Insert Data into Courses Table
 export const insertCourses = (name, fees, success, error) => {
-  db.transaction(
-    tx => {
-      tx.executeSql(
-        'INSERT INTO courses (name, fees) VALUES (?, ?)',
-        [name, fees],
-        (_, res) => {
-          console.log('Insert Success:', res);
-          success(res);
-        },
-        (_, err) => {
-          console.log('Insert Error:', err);
-          error(err);
-        },
-      );
-    },
-    err => {
-      console.log('Transaction Error:', err);
-      error(err);
-    },
-  );
+  db.transaction(tx => {
+    // Check if course already exists
+    tx.executeSql(
+      'SELECT * FROM courses WHERE name=?',
+      [name],
+      (_, { rows }) => {
+        if (rows.length > 0) {
+          // Course already exists
+          error("Course Already Exist");
+        } else {
+          // Insert new course
+          tx.executeSql(
+            'INSERT INTO courses (name, fees) VALUES (?, ?)',
+            [name, fees],
+            (_, res) => {
+              console.log('Insert Success:', res);
+              success(res);
+            },
+            (_, err) => {
+              console.log('Insert Error:', err);
+              error(err);
+            }
+          );
+        }
+      },
+      (_, err) => {
+        console.log('Select Error:', err);
+        error(err);
+      }
+      
+      
+     );
+  },
+  err => {
+    // Transaction error
+    console.log('Transaction Error:', err);
+    error(err);
+  });
 };
+      
 
 export const getCourses = callback => {
   db.transaction(tx => {
@@ -80,3 +98,57 @@ export const getCourses = callback => {
     });
   });
 };
+
+export const deleteCourse = (id, success, error) => {
+  db.transaction(tx => {
+    tx.executeSql(
+      'DELETE FROM courses where id=?',
+      [id],
+      res => {
+        success(res);
+      },
+      err => {
+        error(err);
+      },
+    );
+  });
+};
+
+
+
+export const updateCourse = (id, newName, newFees, success, error) => {
+  db.transaction(tx => {
+    // Check if another course with the same name exists
+    tx.executeSql(
+      "SELECT * FROM courses WHERE name=? AND id!=?",
+      [newName, id],
+      (_, { rows }) => {
+        if (rows.length > 0 || rows._array.length > 0) {
+          error("Course with this name already exists");
+        } else {
+          // Proceed to update
+          tx.executeSql(
+            "UPDATE courses SET name=?, fees=? WHERE id=?",
+            [newName, newFees, id],
+            (_, res) => {
+              success(res);
+            },
+            (_, err) => {
+              console.log("Update error:", err);
+              error("Error while updating course", err);
+            }
+          );
+        }
+      },
+      (_, err) => {
+        console.log("Select error:", err);
+        error("Error while checking existing course", err);
+      }
+    );
+  },
+  (err) => {
+    console.log("Transaction error:", err);
+    error("Transaction failed", err);
+  });
+};
+
